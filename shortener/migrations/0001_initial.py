@@ -9,46 +9,81 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('auth', '0011_update_proxy_permissions'),
+        ("auth", "0011_update_proxy_permissions"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='Domain',
+            name="Domain",
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('domain_name', models.CharField(max_length=40, unique=True)),
-                ('groups', models.ManyToManyField(to='auth.Group')),
+                (
+                    "id",
+                    models.AutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("domain_name", models.CharField(max_length=40, unique=True)),
+                ("groups", models.ManyToManyField(to="auth.Group")),
             ],
         ),
         migrations.CreateModel(
-            name='Link',
+            name="Link",
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('target', models.URLField(verbose_name='target')),
-                ('slug', models.SlugField()),
-                ('custom_tags', models.BooleanField()),
-                ('title', models.CharField(blank=True, max_length=100)),
-                ('og_title', models.CharField(blank=True, max_length=300)),
-                ('og_type', models.CharField(blank=True, max_length=40)),
-                ('og_description', models.TextField(blank=True)),
-                ('og_image_url', models.CharField(blank=True, max_length=800)),
-                ('og_image', models.ImageField(blank=True, upload_to='images/')),
-                ('og_image_width', models.CharField(max_length=30)),
-                ('og_image_height', models.CharField(max_length=30)),
-                ('og_video_url', models.CharField(blank=True, max_length=800)),
-                ('og_video', models.FileField(blank=True, upload_to='videos/')),
-                ('og_video_width', models.IntegerField(default=1920)),
-                ('og_video_height', models.IntegerField(default=1080)),
-                ('og_url', models.CharField(blank=True, max_length=300)),
-                ('twitter_card', models.CharField(choices=[('summary', 'summary'), ('summary_large_image', 'summary_large_image'), ('app', 'app'), ('player', 'player')], max_length=20)),
-                ('twitter_site', models.CharField(blank=True, max_length=30)),
-                ('twitter_creator', models.CharField(blank=True, max_length=30)),
-                ('domain', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='shortener.Domain')),
+                (
+                    "id",
+                    models.AutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("target", models.URLField(verbose_name="target")),
+                ("slug", models.SlugField()),
+                ("custom_tags", models.BooleanField()),
+                ("title", models.CharField(blank=True, max_length=100)),
+                ("og_title", models.CharField(blank=True, max_length=300)),
+                ("og_type", models.CharField(blank=True, max_length=40)),
+                ("og_description", models.TextField(blank=True)),
+                ("og_image_url", models.CharField(blank=True, max_length=800)),
+                ("og_image", models.ImageField(blank=True, upload_to="images/")),
+                ("og_image_width", models.CharField(max_length=30)),
+                ("og_image_height", models.CharField(max_length=30)),
+                ("og_video_url", models.CharField(blank=True, max_length=800)),
+                ("og_video", models.FileField(blank=True, upload_to="videos/")),
+                ("og_video_width", models.IntegerField(default=1920)),
+                ("og_video_height", models.IntegerField(default=1080)),
+                ("og_url", models.CharField(blank=True, max_length=300)),
+                (
+                    "twitter_card",
+                    models.CharField(
+                        choices=[
+                            ("summary", "summary"),
+                            ("summary_large_image", "summary_large_image"),
+                            ("app", "app"),
+                            ("player", "player"),
+                        ],
+                        max_length=20,
+                    ),
+                ),
+                ("twitter_site", models.CharField(blank=True, max_length=30)),
+                ("twitter_creator", models.CharField(blank=True, max_length=30)),
+                (
+                    "domain",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to="shortener.Domain",
+                    ),
+                ),
             ],
         ),
         migrations.AddConstraint(
-            model_name='link',
-            constraint=models.UniqueConstraint(fields=('domain', 'slug'), name='domain_slug_unique'),
+            model_name="link",
+            constraint=models.UniqueConstraint(
+                fields=("domain", "slug"), name="domain_slug_unique"
+            ),
         ),
     ]

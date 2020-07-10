@@ -17,6 +17,7 @@ class Domain(models.Model):
 def get_slug():
     return secrets.token_urlsafe(16).lower()
 
+
 class Link(models.Model):
     target = models.URLField(verbose_name=_("target"), max_length=1200)
 
@@ -33,13 +34,13 @@ class Link(models.Model):
     og_description = models.TextField(blank=True)
 
     og_image_url = models.CharField(max_length=800, blank=True)
-    og_image = models.ImageField(blank=True, upload_to='images/')
+    og_image = models.ImageField(blank=True, upload_to="images/")
 
     og_image_width = models.CharField(max_length=30, blank=True)
     og_image_height = models.CharField(max_length=30, blank=True)
 
     og_video_url = models.CharField(max_length=800, blank=True)
-    og_video = models.FileField(upload_to='videos/', blank=True)
+    og_video = models.FileField(upload_to="videos/", blank=True)
 
     og_video_width = models.IntegerField(default=1920, blank=True)
     og_video_height = models.IntegerField(default=1080, blank=True)
@@ -48,12 +49,16 @@ class Link(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
 
-    twitter_card = models.CharField(max_length=20, blank=True, choices=(
-        ('summary', 'summary'),
-        ('summary_large_image', 'summary_large_image'),
-        ('app', 'app'),
-        ('player', 'player'),
-    ))
+    twitter_card = models.CharField(
+        max_length=20,
+        blank=True,
+        choices=(
+            ("summary", "summary"),
+            ("summary_large_image", "summary_large_image"),
+            ("app", "app"),
+            ("player", "player"),
+        ),
+    )
 
     twitter_site = models.CharField(max_length=30, blank=True)
     twitter_creator = models.CharField(max_length=30, blank=True)
@@ -61,13 +66,12 @@ class Link(models.Model):
     class Meta:
         constraints = [
             models.UniqueConstraint(
-                fields=['domain', 'slug'], name="domain_slug_unique"
+                fields=["domain", "slug"], name="domain_slug_unique"
             ),
         ]
 
     def __str__(self):
         return self.slug
-
 
     def get_absolute_url(self):
         return f"https://{self.domain.domain_name}/{self.slug}/"

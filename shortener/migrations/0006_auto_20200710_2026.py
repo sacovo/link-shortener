@@ -6,23 +6,23 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('shortener', '0005_auto_20200710_2014'),
+        ("shortener", "0005_auto_20200710_2014"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='link',
-            name='custom_tags',
+            model_name="link",
+            name="custom_tags",
             field=models.BooleanField(default=True),
         ),
         migrations.AlterField(
-            model_name='link',
-            name='og_title',
+            model_name="link",
+            name="og_title",
             field=models.CharField(blank=True, max_length=500),
         ),
         migrations.AlterField(
-            model_name='link',
-            name='title',
+            model_name="link",
+            name="title",
             field=models.CharField(blank=True, max_length=500),
         ),
     ]

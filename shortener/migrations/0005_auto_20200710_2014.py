@@ -7,18 +7,18 @@ import shortener.models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('shortener', '0004_link_group'),
+        ("shortener", "0004_link_group"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='link',
-            name='slug',
+            model_name="link",
+            name="slug",
             field=models.SlugField(default=shortener.models.get_slug),
         ),
         migrations.AlterField(
-            model_name='link',
-            name='target',
-            field=models.URLField(max_length=1200, verbose_name='target'),
+            model_name="link",
+            name="target",
+            field=models.URLField(max_length=1200, verbose_name="target"),
         ),
     ]
