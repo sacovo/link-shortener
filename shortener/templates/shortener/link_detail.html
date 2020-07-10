@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{link.title}}</title>
+  <meta property="og:title" content="{{link.og_title}}">
+  <meta property="og:description" content="{{link.og_description}}">
+  <meta property="description" content="{{link.og_description}}">
+  <meta property="og:type" content="{{link.og_type}}">
+  {% if link.og_image %}
+  <meta property="og:image" content="{{link.og_image.url}}">
+  {% else %}
+  <meta property="og:image" content="{{link.og_image_url}}">
+  {% endif %}
+  <meta property="og:image:width" content="{{link.og_image_width}}">
+  <meta property="og:image:height" content="{{link.og_image_height}}">
+  <meta property="og:url" content="{{link.og_url}}">
+  <meta property="twitter:card" content="{{link.twitter_card}}">
+  <meta property="twitter:site" content="{{link.twitter_site}}">
+  <meta property="twitter:creator" content="{{link.twitter_creator}}">
+</head>
+<body>
+<script>
+window.location = "{{link.target}}";
+</script>
+</body>
+</html>

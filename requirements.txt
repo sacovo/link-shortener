@@ -1,2 +1,5 @@
 psycopg2-binary
 Django
+Pillow
+beautifulsoup4
+requests

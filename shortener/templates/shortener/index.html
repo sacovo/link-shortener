@@ -1,0 +1,19 @@
+{% load i18n %}
+<!DOCTYPE html>
+<html lang="{{request.LANGUAGE_CODE}}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Link-Shortener</title>
+</head>
+<body>
+  <h1>Link-Shortener</h1> 
+
+  <p>
+    {% blocktrans %}
+    This is a simple link shortener, that also allows to customize the meta tags of the target link.
+    {% endblocktrans %}
+    <a href="https://github.com/sacovo/link-shortener">{% trans 'For more information visit the source code on github' %}</a>
+  </p>
+</body>
+</html>
