@@ -123,6 +123,7 @@ class LinkAdmin(admin.ModelAdmin):
     )
 
     def save_model(self, request, obj, form, change):
+        obj.slug = obj.slug.lower()
         if not obj.pk and obj.custom_tags:
             tags = fetch_url_params(obj.target)
 
@@ -134,6 +135,8 @@ class LinkAdmin(admin.ModelAdmin):
 
     def get_queryset(self, request):
         queryset = super().get_queryset(request)
+        if request.user.is_superuser:
+            return queryset
         return queryset.filter(group__in=request.user.groups.all())
 
     def has_module_permission(self, request, obj=None):

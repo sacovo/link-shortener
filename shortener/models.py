@@ -15,20 +15,20 @@ class Domain(models.Model):
 
 
 def get_slug():
-    return secrets.token_urlsafe(16)
+    return secrets.token_urlsafe(16).lower()
 
 class Link(models.Model):
-    target = models.URLField(verbose_name=_("target"))
+    target = models.URLField(verbose_name=_("target"), max_length=1200)
 
     domain = models.ForeignKey(Domain, models.CASCADE)
     slug = models.SlugField(default=get_slug)
 
-    custom_tags = models.BooleanField()
+    custom_tags = models.BooleanField(default=True)
 
     group = models.ForeignKey("auth.Group", models.CASCADE)
 
-    title = models.CharField(max_length=100, blank=True)
-    og_title = models.CharField(max_length=300, blank=True)
+    title = models.CharField(max_length=500, blank=True)
+    og_title = models.CharField(max_length=500, blank=True)
     og_type = models.CharField(max_length=40, blank=True)
     og_description = models.TextField(blank=True)
 
