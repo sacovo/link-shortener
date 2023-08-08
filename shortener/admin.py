@@ -1,12 +1,12 @@
+import requests
+from bs4 import BeautifulSoup
+from django.contrib import admin
+from django.contrib.auth.admin import GroupAdmin
+from django.contrib.auth.models import Group
 from django.utils.translation import gettext as _
 
-import requests
-from django.contrib import admin
-from django.contrib.auth.models import Group
-from django.contrib.auth.admin import GroupAdmin
-from shortener.models import Link, Domain
+from shortener.models import Domain, Link
 
-from bs4 import BeautifulSoup
 
 # Register your models here.
 def fetch_url_params(url):
@@ -76,9 +76,9 @@ class DomainAdmin(admin.ModelAdmin):
 
 @admin.register(Link)
 class LinkAdmin(admin.ModelAdmin):
-
     list_display = [
         "slug",
+        "views",
         "domain",
         "get_absolute_url",
         "target",
@@ -96,7 +96,12 @@ class LinkAdmin(admin.ModelAdmin):
     ]
 
     fieldsets = (
-        (None, {"fields": ["slug", "target", "domain", "custom_tags", "group"],}),
+        (
+            None,
+            {
+                "fields": ["slug", "target", "domain", "custom_tags", "group", "views"],
+            },
+        ),
         (
             _("custom tags"),
             {
@@ -118,6 +123,8 @@ class LinkAdmin(admin.ModelAdmin):
             },
         ),
     )
+
+    readonly_fields = ["views"]
 
     def save_model(self, request, obj, form, change):
         obj.slug = obj.slug.lower()
@@ -155,7 +162,6 @@ class LinkAdmin(admin.ModelAdmin):
 
 
 class CustomGroupAdmin(GroupAdmin):
-
     fields = [
         "name",
     ]

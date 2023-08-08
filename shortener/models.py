@@ -1,7 +1,8 @@
+import secrets
+
+from django.contrib.auth.models import Group
 from django.db import models
 from django.utils.translation import gettext_lazy as _
-from django.contrib.auth.models import Group
-import secrets
 
 # Create your models here.
 
@@ -23,6 +24,8 @@ class Link(models.Model):
 
     domain = models.ForeignKey(Domain, models.CASCADE)
     slug = models.SlugField(default=get_slug)
+
+    views = models.IntegerField(default=0)
 
     custom_tags = models.BooleanField(default=True)
 
