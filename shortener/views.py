@@ -6,7 +6,7 @@ from .models import Link
 
 
 def index(request):
-    return redirect("https://github.com/sacovo/link-shortener")
+    return redirect("https://digitalorganizing.ch")
 
 
 def link_detail(request, slug):
