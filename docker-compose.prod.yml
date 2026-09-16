@@ -1,6 +1,6 @@
 services:
   web:
-    image: sacovo/link-shortener
+    image: ghcr.io/sacovo/link-shortener:latest
     command: gunicorn -w 2 -k uvicorn.workers.UvicornH11Worker asgi:application --bind 0.0.0.0:8000
     volumes:
       - static_volume:/home/app/web/storage/static/

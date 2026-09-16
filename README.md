@@ -42,6 +42,32 @@ USE_X_FORWARDED_PROTO=1
 SECURE_HSTS_SECONDS=31536000
 ```
 
+## CI / images
+
+`.github/workflows/ci.yml` runs the test suite against PostgreSQL on every push
+and pull request, and — once tests pass — builds `Dockerfile.prod` and pushes it
+to `ghcr.io/sacovo/link-shortener`. Pull requests build the image but do not push
+it. No secrets to configure: the workflow signs in with the automatic
+`GITHUB_TOKEN`.
+
+Tags produced:
+
+| Trigger | Tag |
+| --- | --- |
+| push to `master` | `latest`, `master`, `sha-<commit>` |
+| push of tag `v1.2.3` | `1.2.3`, `1.2`, `1`, `sha-<commit>` |
+
+So cutting a release is `git tag v1.2.3 && git push --tags`.
+
+The first push creates the GHCR package as **private**. To pull it on a server
+without credentials, open the package on GitHub → *Package settings* → *Change
+visibility* → Public. Otherwise `docker login ghcr.io` with a token that has
+`read:packages` on the host.
+
+Images are `linux/amd64`. For arm64 too, add it to `platforms` in the workflow —
+the QEMU setup step is already there. Cross-builds under emulation are
+noticeably slower.
+
 ## API
 
 The API lives under `/api/v1/` and is meant for automation.
