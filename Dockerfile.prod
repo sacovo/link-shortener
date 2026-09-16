@@ -1,21 +1,20 @@
 # pull official base image
-FROM python:slim-buster as builder
+FROM python:3.13-slim-bookworm AS builder
 
 # set work directory
 WORKDIR /usr/src/app
 
 # set environment variables
-ENV PYTHONDONTWRITEBYTECODE 1
-ENV PYTHONUNBUFFERED 1
-
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
 # install dependencies
 COPY ./requirements.txt .
-RUN pip wheel --no-cache-dir --no-deps --wheel-dir /usr/src/app/wheels -r requirements.txt 
+RUN pip wheel --no-cache-dir --wheel-dir /usr/src/app/wheels -r requirements.txt
 COPY ./requirements.prod.txt .
-RUN pip wheel --no-cache-dir --wheel-dir /usr/src/app/wheels -r requirements.prod.txt 
+RUN pip wheel --no-cache-dir --wheel-dir /usr/src/app/wheels -r requirements.prod.txt
 
-FROM python:slim
+FROM python:3.13-slim-bookworm
 
 # create directory for the app user
 # create the app user
@@ -29,11 +28,13 @@ RUN mkdir -p $APP_HOME/storage/media
 WORKDIR $APP_HOME
 
 # Deps
-RUN apt-get update && apt-get upgrade && apt-get install -y \
-    netcat
+RUN apt-get update && apt-get upgrade -y && \
+  apt-get install -y --no-install-recommends \
+    netcat-openbsd && \
+  rm -rf /var/lib/apt/lists/*
 COPY --from=builder /usr/src/app/wheels /wheels
 COPY --from=builder /usr/src/app/requirements.txt .
-RUN pip install --no-cache /wheels/*
+RUN pip install --no-cache /wheels/* && rm -rf /wheels
 
 # copy entrypoint-prod.sh
 COPY ./entrypoint.prod.sh $APP_HOME

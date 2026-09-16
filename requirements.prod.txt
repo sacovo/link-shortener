@@ -1,2 +1,2 @@
-gunicorn
-uvicorn
+gunicorn~=26.2
+uvicorn~=0.53

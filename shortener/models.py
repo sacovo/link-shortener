@@ -4,12 +4,13 @@ from django.contrib.auth.models import Group
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
-# Create your models here.
-
 
 class Domain(models.Model):
     domain_name = models.CharField(max_length=40, unique=True)
     groups = models.ManyToManyField(Group)
+
+    class Meta:
+        ordering = ("domain_name",)
 
     def __str__(self):
         return self.domain_name
@@ -20,7 +21,7 @@ def get_slug():
 
 
 class Link(models.Model):
-    target = models.URLField(verbose_name=_("target"), max_length=1200)
+    target = models.CharField(verbose_name=_("target"), max_length=1200)
 
     domain = models.ForeignKey(Domain, models.CASCADE)
     slug = models.SlugField(default=get_slug)
@@ -67,6 +68,7 @@ class Link(models.Model):
     twitter_creator = models.CharField(max_length=30, blank=True)
 
     class Meta:
+        ordering = ("-created_at",)
         constraints = [
             models.UniqueConstraint(
                 fields=["domain", "slug"], name="domain_slug_unique"
@@ -75,6 +77,10 @@ class Link(models.Model):
 
     def __str__(self):
         return self.slug
+
+    def save(self, *args, **kwargs):
+        self.slug = self.slug.lower()
+        super().save(*args, **kwargs)
 
     def get_absolute_url(self):
         return f"https://{self.domain.domain_name}/{self.slug}/"

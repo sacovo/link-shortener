@@ -137,3 +137,6 @@ first_run.lock
 
 .vim
 
+
+# collectstatic / uploads
+storage/
