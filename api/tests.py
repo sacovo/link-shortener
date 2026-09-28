@@ -6,7 +6,7 @@ from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from api.models import UserAPIKey
-from shortener.models import Domain, Link
+from shortener.models import Domain, Link, Share
 
 
 class APITestBase(APITestCase):
@@ -436,3 +436,138 @@ class SlugRaceTests(APITestBase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("slug", response.json())
+
+
+class ShareTests(APITestBase):
+    def setUp(self):
+        super().setUp()
+        self.authenticate()
+
+    def create_share(self, **data):
+        data = {
+            "text": "Hello you",
+            "domain": "short.test",
+            "group": "team",
+            "platforms": ["whatsapp", "telegram"],
+            **data,
+        }
+        return self.client.post("/api/v1/shares/", data, format="json")
+
+    def test_creates_a_link_per_platform(self):
+        response = self.create_share(slug_prefix="My-Campaign")
+
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual(
+            [link["platform"] for link in response.data["links"]],
+            ["whatsapp", "telegram"],
+        )
+        links = {link["platform"]: link for link in response.data["links"]}
+
+        wa = links["whatsapp"]
+        self.assertRegex(wa["slug"], r"^my-campaign-[a-z0-9]{6}$")
+        self.assertEqual(wa["short_url"], f"https://short.test/{wa['slug']}/")
+        self.assertEqual(wa["target"], "https://wa.me/?text=Hello%20you")
+        self.assertEqual(
+            wa["desktop_target"], "https://web.whatsapp.com/send?text=Hello%20you"
+        )
+        self.assertNotEqual(wa["slug"], links["telegram"]["slug"])
+        self.assertEqual(response.data["short_urls"]["whatsapp"], wa["short_url"])
+
+        redirect = self.client.get(
+            f"/{wa['slug']}/", headers={"host": "short.test", "user-agent": "iPhone"}
+        )
+        self.assertEqual(redirect["Location"], "https://wa.me/?text=Hello%20you")
+
+    def test_slug_without_prefix_is_just_random(self):
+        response = self.create_share(platforms=["sms"])
+
+        self.assertRegex(response.data["links"][0]["slug"], r"^[a-z0-9]{6}$")
+
+    def test_needs_platforms(self):
+        response = self.create_share(platforms=[])
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("platforms", response.data)
+
+    def test_rejects_unknown_and_duplicate_platforms(self):
+        self.assertEqual(self.create_share(platforms=["myspace"]).status_code, 400)
+        self.assertEqual(self.create_share(platforms=["sms", "sms"]).status_code, 400)
+
+    def test_url_only_platform_needs_a_url(self):
+        response = self.create_share(platforms=["facebook"])
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("facebook", response.data["platforms"])
+        self.assertFalse(Link.objects.exists())
+
+    def test_rejects_a_domain_outside_the_keys_groups(self):
+        response = self.create_share(domain="other.test")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("domain", response.data)
+
+    def test_updating_the_text_rewrites_the_links(self):
+        share_id = self.create_share().data["id"]
+
+        response = self.client.patch(
+            f"/api/v1/shares/{share_id}/", {"text": "Bye"}, format="json"
+        )
+
+        self.assertEqual(response.status_code, 200, response.data)
+        wa = next(l for l in response.data["links"] if l["platform"] == "whatsapp")
+        self.assertEqual(wa["target"], "https://wa.me/?text=Bye")
+
+    def test_update_rejects_create_only_fields(self):
+        share_id = self.create_share().data["id"]
+
+        response = self.client.patch(
+            f"/api/v1/shares/{share_id}/", {"platforms": ["sms"]}, format="json"
+        )
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_other_groups_shares_are_invisible(self):
+        share_id = self.create_share().data["id"]
+        other = User.objects.create_user("other")
+        other.groups.add(self.other_group)
+        _, key = UserAPIKey.objects.create_key(name="other", user=other)
+        self.authenticate(key)
+
+        self.assertEqual(
+            self.client.get(f"/api/v1/shares/{share_id}/").status_code, 404
+        )
+        self.assertEqual(self.client.get("/api/v1/shares/").data["count"], 0)
+
+    def test_deleting_a_share_deletes_its_links(self):
+        share_id = self.create_share().data["id"]
+
+        self.client.delete(f"/api/v1/shares/{share_id}/")
+
+        self.assertFalse(Link.objects.exists())
+
+    def test_preview_stores_nothing(self):
+        response = self.client.post(
+            "/api/v1/shares/preview/",
+            {"text": "Hi", "platforms": ["whatsapp", "facebook"]},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.data["links"],
+            [
+                {
+                    "platform": "whatsapp",
+                    "label": "WhatsApp",
+                    "share_url": "https://wa.me/?text=Hi",
+                    "desktop_url": "https://web.whatsapp.com/send?text=Hi",
+                },
+                {
+                    "platform": "facebook",
+                    "label": "Facebook",
+                    "share_url": None,
+                    "desktop_url": None,
+                },
+            ],
+        )
+        self.assertFalse(Share.objects.exists())

@@ -7,7 +7,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from shortener.metadata import fetch_url_params
-from shortener.models import Link
+from shortener.models import Link, Share
 
 from .filters import LinkFilter
 from .permissions import domains_for, groups_for
@@ -17,6 +17,9 @@ from .serializers import (
     GroupSerializer,
     LinkSerializer,
     SCRAPED_FIELDS,
+    SharePreviewResultSerializer,
+    SharePreviewSerializer,
+    ShareSerializer,
 )
 
 
@@ -88,6 +91,49 @@ class LinkViewSet(viewsets.ModelViewSet):
         link.save(update_fields=[f for f in SCRAPED_FIELDS if f in scraped])
 
         return Response(self.get_serializer(link).data)
+
+
+@extend_schema(tags=["shares"])
+class ShareViewSet(viewsets.ModelViewSet):
+    """Share a text on several platforms, with one short link per platform.
+
+    Each link redirects to the platform's share URL (`wa.me/?text=…` and so
+    on). Updating the text or URL of a share rewrites all of its links. Only
+    shares owned by one of your groups are visible.
+    """
+
+    serializer_class = ShareSerializer
+    search_fields = ["text", "url", "links__slug"]
+    ordering_fields = ["created_at"]
+    ordering = ["-created_at"]
+
+    def get_queryset(self):
+        queryset = Share.objects.select_related("domain", "group").prefetch_related(
+            "links__domain"
+        )
+
+        user = self.request.user
+        if user.is_superuser:
+            return queryset
+
+        return queryset.filter(group__in=user.groups.all())
+
+    @extend_schema(
+        request=SharePreviewSerializer,
+        responses=SharePreviewResultSerializer,
+        summary=_("Generate the share URLs without storing anything"),
+    )
+    @action(detail=False, methods=["post"])
+    def preview(self, request):
+        serializer = SharePreviewSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        return Response(
+            SharePreviewResultSerializer.build(
+                data["text"], data["url"].strip(), data.get("platforms")
+            )
+        )
 
 
 @extend_schema(tags=["domains"])

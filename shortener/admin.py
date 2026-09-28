@@ -15,12 +15,7 @@ from unfold.forms import AdminPasswordChangeForm, UserChangeForm, UserCreationFo
 
 from shortener.metadata import fetch_url_params
 from shortener.models import Domain, Link, Share
-from shortener.share import (
-    build_desktop_share_url,
-    build_share_url,
-    build_share_urls,
-    needs_url,
-)
+from shortener.share import build_share_urls
 
 
 @admin.register(Domain)
@@ -206,7 +201,6 @@ class ShareLinkFormSet(forms.BaseInlineFormSet):
         if not share.domain_id:
             return
 
-        max_length = Link._meta.get_field("target").max_length
         seen = set()
 
         for form in self.forms:
@@ -216,20 +210,9 @@ class ShareLinkFormSet(forms.BaseInlineFormSet):
             platform = form.cleaned_data.get("share_platform")
             slug = form.cleaned_data.get("slug")
 
-            if platform:
-                share_urls = [
-                    build_share_url(platform, share.text, share.url) or "",
-                    build_desktop_share_url(platform, share.text, share.url) or "",
-                ]
-                if needs_url(platform) and not share.url:
-                    form.add_error(
-                        "share_platform", _("This platform needs a URL to share.")
-                    )
-                elif any(len(u) > max_length for u in share_urls):
-                    form.add_error(
-                        "share_platform",
-                        _("The text is too long for a share link on this platform."),
-                    )
+            error = platform and share.platform_error(platform)
+            if error:
+                form.add_error("share_platform", error)
 
             if not slug:
                 continue

@@ -10,6 +10,7 @@ from . import views
 
 router = DefaultRouter()
 router.register("links", views.LinkViewSet, basename="link")
+router.register("shares", views.ShareViewSet, basename="share")
 router.register("domains", views.DomainViewSet, basename="domain")
 router.register("groups", views.GroupViewSet, basename="group")
 

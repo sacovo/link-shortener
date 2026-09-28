@@ -9,6 +9,7 @@ from shortener.share import (
     PLATFORM_CHOICES,
     build_desktop_share_url,
     build_share_url,
+    needs_url,
 )
 
 
@@ -37,6 +38,19 @@ def is_desktop(request):
 
 def get_slug():
     return secrets.token_urlsafe(16).lower()
+
+
+SHORT_SLUG_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789"
+
+
+def get_free_slug(domain, prefix=""):
+    """A short random slug that is unused on ``domain``, as ``<prefix>-<random>``."""
+    for _attempt in range(10):
+        suffix = "".join(secrets.choice(SHORT_SLUG_ALPHABET) for _i in range(6))
+        slug = f"{prefix.lower()}-{suffix}" if prefix else suffix
+        if not Link.objects.filter(domain=domain, slug=slug).exists():
+            return slug
+    raise RuntimeError(f"No free slug found on {domain} for prefix {prefix!r}")
 
 
 class Link(models.Model):
@@ -160,6 +174,27 @@ class Share(models.Model):
 
     def share_url(self, platform):
         return build_share_url(platform, self.text, self.url)
+
+    def platform_error(self, platform):
+        """Why no short link can be made for ``platform``, or None if it can."""
+        if needs_url(platform) and not self.url:
+            return _("This platform needs a URL to share.")
+
+        max_length = Link._meta.get_field("target").max_length
+        urls = [
+            self.share_url(platform),
+            build_desktop_share_url(platform, self.text, self.url),
+        ]
+        if any(url and len(url) > max_length for url in urls):
+            return _("The text is too long for a share link on this platform.")
+
+        return None
+
+    def add_link(self, platform, slug):
+        link = Link(share_platform=platform, slug=slug)
+        self.apply_to(link)
+        link.save()
+        return link
 
     def apply_to(self, link):
         """Point ``link`` at this share's URL for its platform."""

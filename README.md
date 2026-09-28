@@ -77,6 +77,9 @@ The API lives under `/api/v1/` and is meant for automation.
 | `GET/POST /api/v1/links/` | List and create short links |
 | `GET/PUT/PATCH/DELETE /api/v1/links/{id}/` | Read and change a single link |
 | `POST /api/v1/links/{id}/refresh-metadata/` | Re-scrape the target's open graph tags |
+| `GET/POST /api/v1/shares/` | List shares, create a share with one short link per platform |
+| `GET/PUT/PATCH/DELETE /api/v1/shares/{id}/` | Read and change a share; changing the text rewrites its links |
+| `POST /api/v1/shares/preview/` | Generate the share URLs (`wa.me/?text=…` etc.) without storing anything |
 | `GET /api/v1/domains/` | Domains you may create links on |
 | `GET /api/v1/groups/` | Groups you may file links under |
 | `GET /api/v1/whoami/` | What the key you are using can reach |
@@ -123,6 +126,35 @@ curl -X POST https://example.com/api/v1/links/ \
   "...": "the scraped og_* and twitter_* fields"
 }
 ```
+
+### Sharing a text
+
+A share makes one short link per platform, each redirecting to that platform's
+share URL. Slugs are random, behind `slug_prefix` if you give one. `url` is
+optional, except for Facebook and LinkedIn, which can only share a link.
+Platforms: `whatsapp`, `telegram`, `x`, `bluesky`, `threads`, `facebook`,
+`linkedin`, `email`, `sms`.
+
+```
+curl -X POST https://example.com/api/v1/shares/ \
+  -H "Authorization: Api-Key <prefix>.<secret>" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "text": "Sign the petition!",
+        "url": "https://example.org/petition",
+        "platforms": ["whatsapp", "telegram"],
+        "slug_prefix": "my-campaign",
+        "domain": "example.com",
+        "group": "campaigns"
+      }'
+```
+
+The response lists the `links` and a `short_urls` map from platform to short
+URL, e.g. `"whatsapp": "https://example.com/my-campaign-x3k9qa/"`. WhatsApp links
+send desktop browsers to WhatsApp Web instead of `wa.me`. `PATCH`ing `text` or
+`url` rewrites every link of the share; `platforms` and `slug_prefix` can only be
+set on create. `POST /api/v1/shares/preview/` takes `text`, `url` and optionally
+`platforms` and only returns the share URLs.
 
 ### Listing and filtering
 
