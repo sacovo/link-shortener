@@ -1,6 +1,7 @@
 from django.db.models import F
 from django.http import JsonResponse
 from django.shortcuts import HttpResponseRedirect, get_object_or_404, redirect, render
+from django.utils.cache import patch_vary_headers
 
 from .models import Link
 
@@ -10,7 +11,7 @@ def index(request):
 
 
 class CustomSchemeRedirect(HttpResponseRedirect):
-    allowed_schemes = ["http", "https", "ftp", "mailto"]
+    allowed_schemes = ["http", "https", "ftp", "mailto", "sms"]
 
 
 def _get_link(request, slug):
@@ -25,10 +26,19 @@ def link_detail(request, slug):
     # Counted with an UPDATE so that concurrent hits don't overwrite each other.
     Link.objects.filter(pk=link.pk).update(views=F("views") + 1)
 
-    if link.custom_tags:
-        return render(request, "shortener/link_detail.html", {"link": link})
+    target = link.target_for(request)
 
-    return CustomSchemeRedirect(link.target)
+    if link.custom_tags:
+        response = render(
+            request, "shortener/link_detail.html", {"link": link, "target": target}
+        )
+    else:
+        response = CustomSchemeRedirect(target)
+
+    if link.desktop_target:
+        # Caches must not hand one device's redirect to the other.
+        patch_vary_headers(response, ["User-Agent", "Sec-CH-UA-Mobile"])
+    return response
 
 
 def link_count(request, slug):

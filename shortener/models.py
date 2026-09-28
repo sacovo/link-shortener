@@ -1,8 +1,15 @@
+import re
 import secrets
 
 from django.contrib.auth.models import Group
 from django.db import models
 from django.utils.translation import gettext_lazy as _
+
+from shortener.share import (
+    PLATFORM_CHOICES,
+    build_desktop_share_url,
+    build_share_url,
+)
 
 
 class Domain(models.Model):
@@ -16,12 +23,34 @@ class Domain(models.Model):
         return self.domain_name
 
 
+MOBILE_USER_AGENT = re.compile(r"Mobi|Android|iPhone|iPad|iPod", re.IGNORECASE)
+
+
+def is_desktop(request):
+    # Chromium sends this client hint by default; Safari and Firefox don't.
+    # iPadOS Safari claims to be a Mac, so iPads end up counted as desktops.
+    hint = request.headers.get("Sec-CH-UA-Mobile")
+    if hint is not None:
+        return hint == "?0"
+    return not MOBILE_USER_AGENT.search(request.headers.get("User-Agent", ""))
+
+
 def get_slug():
     return secrets.token_urlsafe(16).lower()
 
 
 class Link(models.Model):
-    target = models.CharField(verbose_name=_("target"), max_length=1200)
+    # Share URLs carry the whole percent-encoded message, hence the length.
+    target = models.CharField(verbose_name=_("target"), max_length=4000)
+    desktop_target = models.CharField(
+        verbose_name=_("desktop target"),
+        max_length=4000,
+        blank=True,
+        help_text=_(
+            "Optional. Used instead of the target when the link is opened on a "
+            "desktop computer."
+        ),
+    )
 
     domain = models.ForeignKey(Domain, models.CASCADE)
     slug = models.SlugField(default=get_slug)
@@ -67,6 +96,18 @@ class Link(models.Model):
     twitter_site = models.CharField(max_length=30, blank=True)
     twitter_creator = models.CharField(max_length=30, blank=True)
 
+    # Set for short links that are managed by a Share; their target is rebuilt
+    # from the share's text whenever the share is saved.
+    share = models.ForeignKey(
+        "Share", models.CASCADE, null=True, blank=True, related_name="links"
+    )
+    share_platform = models.CharField(
+        verbose_name=_("platform"),
+        max_length=20,
+        blank=True,
+        choices=PLATFORM_CHOICES,
+    )
+
     class Meta:
         ordering = ("-created_at",)
         constraints = [
@@ -82,5 +123,65 @@ class Link(models.Model):
         self.slug = self.slug.lower()
         super().save(*args, **kwargs)
 
+    def target_for(self, request):
+        if self.desktop_target and is_desktop(request):
+            return self.desktop_target
+        return self.target
+
     def get_absolute_url(self):
         return f"https://{self.domain.domain_name}/{self.slug}/"
+
+
+class Share(models.Model):
+    """A message to share, with one short link per platform it is shared on."""
+
+    text = models.TextField(verbose_name=_("text"))
+    url = models.CharField(
+        verbose_name=_("URL"),
+        max_length=800,
+        blank=True,
+        help_text=_(
+            "Optional link to share along with the text. "
+            "Facebook and LinkedIn can only share a link."
+        ),
+    )
+
+    domain = models.ForeignKey(Domain, models.CASCADE)
+    group = models.ForeignKey("auth.Group", models.CASCADE)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+
+    def __str__(self):
+        text = " ".join(self.text.split())
+        return text if len(text) <= 60 else text[:57] + "…"
+
+    def share_url(self, platform):
+        return build_share_url(platform, self.text, self.url)
+
+    def apply_to(self, link):
+        """Point ``link`` at this share's URL for its platform."""
+        link.share = self
+        link.domain = self.domain
+        link.group = self.group
+        link.target = self.share_url(link.share_platform) or ""
+        link.desktop_target = (
+            build_desktop_share_url(link.share_platform, self.text, self.url) or ""
+        )
+        # Share URLs are actions, not pages with a preview: redirect straight away.
+        link.custom_tags = False
+
+    def sync_links(self):
+        for link in self.links.all():
+            self.apply_to(link)
+            link.save(
+                update_fields=[
+                    "domain",
+                    "group",
+                    "target",
+                    "desktop_target",
+                    "custom_tags",
+                ]
+            )

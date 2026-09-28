@@ -1,14 +1,26 @@
+from django import forms
 from django.contrib import admin
 from django.contrib.auth.admin import GroupAdmin, UserAdmin
 from django.contrib.auth.models import Group, User
+from django.core.exceptions import ValidationError
+from django.http import HttpResponse
+from django.template.loader import render_to_string
+from django.urls import path, reverse
 from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _
-from unfold.admin import ModelAdmin
+from django.views.decorators.http import require_POST
+from unfold.admin import ModelAdmin, TabularInline
 from unfold.contrib.filters.admin import RangeDateFilter
 from unfold.forms import AdminPasswordChangeForm, UserChangeForm, UserCreationForm
 
 from shortener.metadata import fetch_url_params
-from shortener.models import Domain, Link
+from shortener.models import Domain, Link, Share
+from shortener.share import (
+    build_desktop_share_url,
+    build_share_url,
+    build_share_urls,
+    needs_url,
+)
 
 
 @admin.register(Domain)
@@ -83,7 +95,15 @@ class LinkAdmin(ModelAdmin):
         (
             None,
             {
-                "fields": ["slug", "target", "domain", "custom_tags", "group", "views"],
+                "fields": [
+                    "slug",
+                    "target",
+                    "desktop_target",
+                    "domain",
+                    "custom_tags",
+                    "group",
+                    "views",
+                ],
             },
         ),
         (
@@ -109,6 +129,12 @@ class LinkAdmin(ModelAdmin):
     )
 
     readonly_fields = ["views"]
+
+    def get_readonly_fields(self, request, obj=None):
+        # The share rewrites the targets on every save, so don't offer to edit them.
+        if obj is not None and obj.share_id:
+            return [*self.readonly_fields, "target", "desktop_target"]
+        return self.readonly_fields
 
     @admin.display(description=_("short link"))
     def short_link(self, obj):
@@ -136,6 +162,209 @@ class LinkAdmin(ModelAdmin):
 
     def get_queryset(self, request):
         queryset = super().get_queryset(request).select_related("domain", "group")
+        if request.user.is_superuser:
+            return queryset
+        return queryset.filter(group__in=request.user.groups.all())
+
+    def has_module_permission(self, request, obj=None):
+        return True
+
+    def has_view_or_change_permission(self, request, obj=None):
+        return True
+
+    def has_view_permission(self, request, obj=None):
+        return True
+
+    def has_add_permission(self, request):
+        return True
+
+    def has_change_permission(self, request, obj=None):
+        return True
+
+    def has_delete_permission(self, request, obj=None):
+        return True
+
+
+class ShareLinkForm(forms.ModelForm):
+    class Meta:
+        model = Link
+        fields = ["share_platform", "slug"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["share_platform"].required = True
+        # Every platform gets a slug picked by hand, not a random one.
+        self.fields["slug"].initial = None
+
+
+class ShareLinkFormSet(forms.BaseInlineFormSet):
+    def clean(self):
+        super().clean()
+
+        share = self.instance
+        # Unset when the share form itself is invalid; its errors come first.
+        if not share.domain_id:
+            return
+
+        max_length = Link._meta.get_field("target").max_length
+        seen = set()
+
+        for form in self.forms:
+            if not form.cleaned_data or form.cleaned_data.get("DELETE"):
+                continue
+
+            platform = form.cleaned_data.get("share_platform")
+            slug = form.cleaned_data.get("slug")
+
+            if platform:
+                share_urls = [
+                    build_share_url(platform, share.text, share.url) or "",
+                    build_desktop_share_url(platform, share.text, share.url) or "",
+                ]
+                if needs_url(platform) and not share.url:
+                    form.add_error(
+                        "share_platform", _("This platform needs a URL to share.")
+                    )
+                elif any(len(u) > max_length for u in share_urls):
+                    form.add_error(
+                        "share_platform",
+                        _("The text is too long for a share link on this platform."),
+                    )
+
+            if not slug:
+                continue
+            slug = slug.lower()
+
+            # Link has a (domain, slug) unique constraint, but the domain isn't
+            # a field of this form, so the model validation skips it.
+            clash = (
+                Link.objects.filter(domain=share.domain, slug__iexact=slug)
+                .exclude(pk=form.instance.pk)
+                .exists()
+            )
+            if slug in seen or clash:
+                form.add_error(
+                    "slug",
+                    ValidationError(
+                        _("This slug is already used on %(domain)s."),
+                        params={"domain": share.domain},
+                    ),
+                )
+            seen.add(slug)
+
+
+class ShareLinkInline(TabularInline):
+    model = Link
+    fk_name = "share"
+    form = ShareLinkForm
+    formset = ShareLinkFormSet
+    fields = ["share_platform", "slug", "short_link", "views"]
+    readonly_fields = ["short_link", "views"]
+    extra = 0
+    verbose_name = _("short link")
+    verbose_name_plural = _("short links")
+
+    @admin.display(description=_("short link"))
+    def short_link(self, obj):
+        if not obj.pk:
+            return "-"
+        url = obj.get_absolute_url()
+        return format_html(
+            '<a href="{}" target="_blank" rel="noopener">{}</a>', url, url
+        )
+
+    def has_view_permission(self, request, obj=None):
+        return True
+
+    def has_add_permission(self, request, obj=None):
+        return True
+
+    def has_change_permission(self, request, obj=None):
+        return True
+
+    def has_delete_permission(self, request, obj=None):
+        return True
+
+
+@admin.register(Share)
+class ShareAdmin(ModelAdmin):
+    list_display = ["__str__", "platforms", "domain", "created_at"]
+    search_fields = ["text", "url", "links__slug"]
+    date_hierarchy = "created_at"
+    list_filter = [
+        ("domain", admin.RelatedOnlyFieldListFilter),
+        ("group", admin.RelatedOnlyFieldListFilter),
+    ]
+
+    autocomplete_fields = ["domain", "group"]
+    inlines = [ShareLinkInline]
+
+    fieldsets = (
+        (None, {"fields": ["text", "url", "domain", "group"]}),
+        (_("share links"), {"fields": ["share_links"]}),
+    )
+    readonly_fields = ["share_links"]
+
+    class Media:
+        js = ["shortener/share_preview.js"]
+
+    @admin.display(description=_("platforms"))
+    def platforms(self, obj):
+        return ", ".join(link.get_share_platform_display() for link in obj.links.all())
+
+    @admin.display(description=_("generated links"))
+    def share_links(self, obj):
+        return format_html(
+            '<div id="share-preview" data-url="{}">{}</div>',
+            reverse("admin:shortener_share_preview"),
+            self._render_preview(obj.text, obj.url),
+        )
+
+    def _render_preview(self, text, url):
+        return render_to_string(
+            "shortener/share_preview.html",
+            {"share_urls": build_share_urls(text, url), "empty": not (text or url)},
+        )
+
+    def get_urls(self):
+        preview = self.admin_site.admin_view(require_POST(self.preview_view))
+        return [
+            path("preview/", preview, name="shortener_share_preview"),
+            *super().get_urls(),
+        ]
+
+    def preview_view(self, request):
+        """The generated links for unsaved text, so they update while typing."""
+        return HttpResponse(
+            self._render_preview(
+                request.POST.get("text", "").strip(),
+                request.POST.get("url", "").strip(),
+            )
+        )
+
+    def save_formset(self, request, form, formset, change):
+        if formset.model is not Link:
+            return super().save_formset(request, form, formset, change)
+
+        share = form.instance
+        for link in formset.save(commit=False):
+            share.apply_to(link)
+            link.save()
+        for link in formset.deleted_objects:
+            link.delete()
+
+    def save_related(self, request, form, formsets, change):
+        super().save_related(request, form, formsets, change)
+        # Links that weren't touched in the inline still carry the old text.
+        form.instance.sync_links()
+
+    def get_queryset(self, request):
+        queryset = (
+            super()
+            .get_queryset(request)
+            .select_related("domain")
+            .prefetch_related("links")
+        )
         if request.user.is_superuser:
             return queryset
         return queryset.filter(group__in=request.user.groups.all())

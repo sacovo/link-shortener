@@ -82,6 +82,7 @@ class LinkSerializer(serializers.ModelSerializer):
             "slug",
             "short_url",
             "target",
+            "desktop_target",
             "domain",
             "group",
             "custom_tags",

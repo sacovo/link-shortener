@@ -285,6 +285,11 @@ UNFOLD = {
                         "link": reverse_lazy("admin:shortener_link_changelist"),
                     },
                     {
+                        "title": _("Shares"),
+                        "icon": "share",
+                        "link": reverse_lazy("admin:shortener_share_changelist"),
+                    },
+                    {
                         "title": _("Domains"),
                         "icon": "public",
                         "link": reverse_lazy("admin:shortener_domain_changelist"),
