@@ -74,6 +74,32 @@ class RedirectTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Hi")
 
+    def test_uploaded_og_image_is_absolute(self):
+        link = self.make_link(slug="abc", custom_tags=True)
+        link.og_image.name = "images/pic.png"
+        link.save()
+
+        response = self.client.get("/abc/", headers={"host": "short.test"})
+
+        self.assertContains(
+            response,
+            '<meta property="og:image" content="http://short.test/media/images/pic.png">',
+            html=True,
+        )
+
+    def test_og_image_url_is_kept_as_is(self):
+        self.make_link(
+            slug="abc", custom_tags=True, og_image_url="https://cdn.test/i.png"
+        )
+
+        response = self.client.get("/abc/", headers={"host": "short.test"})
+
+        self.assertContains(
+            response,
+            '<meta property="og:image" content="https://cdn.test/i.png">',
+            html=True,
+        )
+
     def test_redirects_when_custom_tags_are_off(self):
         self.make_link(slug="abc", custom_tags=False)
 

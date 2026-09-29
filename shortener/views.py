@@ -29,8 +29,15 @@ def link_detail(request, slug):
     target = link.target_for(request)
 
     if link.custom_tags:
+        og_image = link.og_image.url if link.og_image else link.og_image_url
+        if og_image:
+            # Crawlers require og:image to be absolute, but uploads resolve to
+            # a host-relative MEDIA_URL path.
+            og_image = request.build_absolute_uri(og_image)
         response = render(
-            request, "shortener/link_detail.html", {"link": link, "target": target}
+            request,
+            "shortener/link_detail.html",
+            {"link": link, "target": target, "og_image": og_image},
         )
     else:
         response = CustomSchemeRedirect(target)
